@@ -1,0 +1,181 @@
+Firstly, wait for Kubernetes to be ready.
+
+Argo is normally installed into a namespace named argo , so lets create that:
+
+kubectl create ns argo
+
+Next, navigate to the releases page and find the release you wish to use (the latest full release is preferred).
+
+Scroll down to the Controller and Server section and execute the kubectl commands.
+
+Below is an example of the install commands, ensure that you update the command to install the correct version number:
+
+kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.5.4/install.yaml
+
+What was installed?
+It will take about 1m for all deployments to become available. Let's look at what is installed while we wait.
+
+The Workflow Controller is responsible for running workflows:
+
+kubectl -n argo get deploy workflow-controller
+
+And the Argo Server provides a user interface and API:
+
+kubectl -n argo get deploy argo-server
+
+Wait for everything to be ready
+Before we proceed, let's wait (around 1 minute to 2 minutes) for our deployments to be available:
+
+kubectl -n argo wait deploy --all --for condition=Available --timeout 2m
+
+
+A workflow is defined as a Kubernetes resource. Each workflow consists of one or more templates, one of which is defined as the entrypoint. Each template can be one of several types, in this example we have one template that is a container.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: hello
+spec:
+  serviceAccountName: argo # this is the service account that the workflow will run with
+  entrypoint: main # the first template to run in the workflows
+  templates:
+  - name: main
+    container: # this is a container template
+      image: docker/whalesay # this image prints "hello world" to the console
+      command: ["cowsay"]
+There are several other types of templates, and we'll come to more of them soon.
+
+Because a workflow is just a Kubernetes resource, you can use kubectl with them.
+
+Create a workflow:
+
+kubectl -n argo apply -f hello-workflow.yaml
+
+Then you can wait for it to complete (around 1m):
+
+kubectl -n argo wait workflows/hello --for condition=Completed --timeout 2m
+The argo-server (and thus the UI) defaults to client authentication, which requires clients to provide their Kubernetes bearer token in order to authenticate. For more information, refer to the Argo Server Auth Mode documentation.
+
+We will switch the authentication mode to server so that we can bypass the UI login for now.
+
+Additionally, Argo Server runs over https by default. This isn't compatible with Killercoda, so we will disable https at the same time. This is not something we recommend for production installs.
+
+kubectl patch deployment \
+  argo-server \
+  --namespace argo \
+  --type='json' \
+  -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/args", "value": [
+  "server",
+  "--auth-mode=server",
+  "--secure=false"
+]},
+{"op": "replace", "path": "/spec/template/spec/containers/0/readinessProbe/httpGet/scheme", "value": "HTTP"}
+]'
+We need to wait for the Argo Server to redeploy:
+
+kubectl -n argo rollout status --watch --timeout=600s deployment/argo-server
+
+You can then view the user interface by running a port forward:
+
+kubectl -n argo port-forward --address 0.0.0.0 svc/argo-server 2746:2746 > /dev/null &
+
+You can then click here to access the UI. As it's your first time using the Workflows UI, you will see a number of modals explaining the new features. Dismiss them.
+
+Run a workflow
+Open the "Argo Server" tab and you should see the user interface:
+
+ui.png
+
+Lets start a workflow from the user interface:
+
+Click "Submit new workflow":
+
+submit-01.png
+
+Click "Edit using full workflow options". You should see something similar to this:
+
+submit-02.png
+
+Paste this YAML into the editor:
+
+metadata:
+  generateName: hello-world-
+  namespace: argo
+spec:
+  serviceAccountName: argo
+  entrypoint: main
+  templates:
+    - name: main
+      container:
+        image: docker/whalesay
+        command: ["cowsay"]
+Click "Create". You will see a diagram of the workflow. The yellow icon shows that it is pending, after a few seconds it'll turn blue to indicate it is running, and finally green to show that it has completed successfully:
+
+running.png
+
+After about 30s, the icon will change to green:
+
+green.png
+
+Exercise
+Take a few minutes to play around with the user interface. Find out how to:
+
+List workflows.
+View a workflow.
+Resubmit a completed workflow.
+
+
+
+
+
+To run workflows, the easiest way is to use the Argo CLI, you can download it as follows:
+
+curl -sLO https://github.com/argoproj/argo-workflows/releases/download/v3.5.4/argo-linux-amd64.gz
+gunzip argo-linux-amd64.gz
+chmod +x argo-linux-amd64
+mv ./argo-linux-amd64 /usr/local/bin/argo
+To check it is installed correctly:
+
+argo version
+
+You should see something like this:
+
+version.png
+
+Let's run a workflow!
+
+argo submit -n argo --serviceaccount argo --watch https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/hello-world.yaml
+
+You should see the workflow complete successfully after about 1m:
+
+submit-cli.png
+
+You can list workflows easily:
+
+argo list -n argo
+
+list.png
+
+Get details about a specific workflow. @latest is an alias for the latest workflow:
+
+argo get -n argo @latest
+
+And you can view that workflows logs:
+
+argo logs -n argo @latest
+
+logs.png
+
+Finally, you can get help:
+
+argo --help
+
+Exercise
+Submit a workflow, but change the name using the --name option.
+
+
+---------------------------------------------------------------
+
+Template
+
+
