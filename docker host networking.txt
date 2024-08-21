@@ -1,0 +1,17 @@
+#Access host network
+ 
+docker run --rm -d --network host --name my_nginx nginx
+
+#Access Nginx by browsing to http://localhost:80/.
+
+curl http://localhost:80/
+
+ip addr show
+
+apt install net-tools
+
+sudo netstat -tulpn | grep :80
+
+docker container stop my_nginx
+
+curl http://localhost:80/
