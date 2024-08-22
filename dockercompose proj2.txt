@@ -1,0 +1,108 @@
+#Create a new directory for your project and navigate into it:
+
+mkdir myblog && cd myblog
+
+mkdir app && cd app
+
+#Initialize a new Node.js project and install required packages:
+apt install npm -y
+npm init -y
+npm install express mongoose body-parser
+
+#Inside the app directory, create a file named server.js and paste the following code:
+
+// Include necessary modules
+const express = require('express');
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
+
+// Initialize Express
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Body parser middleware
+app.use(bodyParser.json());
+
+// MongoDB configuration
+const mongoURI = 'mongodb://mongodb/blog';
+mongoose
+  .connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.log(err));
+
+// Define Mongoose schema and model
+const BlogSchema = new mongoose.Schema({
+  title: String,
+  content: String,
+  date: { type: Date, default: Date.now }
+});
+const Blog = mongoose.model('Blog', BlogSchema);
+
+// Routes
+app.get('/', (req, res) => {
+  res.send('Welcome to the blogging app!');
+});
+
+// Create a new blog post
+app.post('/blog', (req, res) => {
+  const { title, content } = req.body;
+  const newBlog = new Blog({ title, content });
+  newBlog.save()
+    .then(blog => res.json(blog))
+    .catch(err => console.log(err));
+});
+
+// Get all blog posts
+app.get('/blog', (req, res) => {
+  Blog.find()
+    .then(blogs => res.json(blogs))
+    .catch(err => console.log(err));
+});
+
+// Start server
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
+
+#Create Dockerfile in side app directory
+
+FROM node:20.11.1
+
+WORKDIR ./app
+
+COPY package.json ./
+
+RUN npm install
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["node", "server.js"]
+
+#Navigate back to the root of your project:
+cd ..
+
+#Create a docker-compose.yml file in the root directory of your project and paste the following configuration:
+
+version: '3'
+
+services:
+  express:
+    build: ./app
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongodb
+  mongodb:
+    image: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+volumes:
+  mongodb-data:
+
+#Open a terminal in the root directory of your project and run the following command:
+
+docker-compose up
