@@ -101,5 +101,3 @@ To follow the labs, ensure you have:
 
 ---
 ```
-
-👉 Do you want me to **split the repo logically** into two folders (`docker/` and `serverless/`) and then adjust the README accordingly? That way it won’t feel like a huge flat dump of files.
